@@ -1,11 +1,40 @@
-# First PR Practice
+# 다이어트 식단 플래너
 
-This repo exists so I could practice the full workflow of opening a pull
-request on GitHub: creating a branch, commiting a small change, and merging
-it in.
+나이/키/몸무게(또는 인바디 결과)와 목표 몸무게, 다이어트 기간을 입력하면
+하루 칼로리·영양소 목표를 계산하고, 그에 맞는 하루 식단 샘플 3~4가지를 매일 보여주는
+웹 앱입니다. 매일 식단 성공 여부를 체크하면, 실패한 날의 감량분이 남은 기간으로
+재분배되어 이후 식단 목표가 자동으로 더 엄격하게(또는 여유롭게) 조정됩니다.
 
-## Goal
+## 사용 방법
 
-- [x] Create a repository
-- [ ] Open a pull request with a small, safe improvemet
-- [ ] Merge it
+빌드 과정이 필요 없는 순수 HTML/CSS/JS 앱입니다. 저장소를 내려받아
+`index.html`을 정적 서버로 열면 됩니다.
+
+```bash
+python3 -m http.server 8000
+# 브라우저에서 http://localhost:8000 접속
+```
+
+## 주요 기능
+
+- **기본 정보 입력**: 성별, 나이, 키, 몸무게로 Mifflin-St Jeor 공식 기반 기초대사량(BMR) 계산
+- **인바디 결과 입력**: 체지방률을 입력하면 Katch-McArdle 공식(제지방량 기반)으로 더 정확한 BMR 계산, 인바디 실측 기초대사량 직접 입력도 지원
+- **활동 수준**에 따른 일일 소모 칼로리(TDEE) 계산
+- **목표 몸무게·다이어트 기간**을 바탕으로 필요한 총 칼로리 조정량을 계산하고, 안전한 최소 섭취 칼로리와 권장 감량 속도(주당 1kg) 초과 여부를 안내
+- **매일 식단 샘플 4종** (한식/샐러드/저탄고지/간편식) 제공 — 각 식단은 오늘의 칼로리 목표에 맞춰 재료량이 자동으로 조정됨
+- **매일 성공/실패 체크인**: 실패한 날은 감량분이 반영되지 않아, 남은 기간에 목표가 재분배되며 이후 식단이 자동으로 더 엄격해짐 (반대로 계획보다 잘 되고 있으면 여유로워짐)
+- 체크인 시 실측 체중을 입력하면 계획이 더 정확하게 보정됨
+- 진행 기록(Day별 목표 칼로리·선택 식단·성공 여부) 히스토리 제공
+- 기간 종료 시 요약 화면, 새 계획으로 재시작 가능
+- 모든 데이터는 브라우저 `localStorage`에 저장 (별도 서버/DB 불필요)
+
+## 파일 구조
+
+```
+index.html          화면 마크업 (설정 / 대시보드 / 완료 화면)
+css/style.css        스타일
+js/calculator.js     BMR/TDEE 계산, 목표 칼로리 재분배 로직
+js/mealTemplates.js  식단 템플릿 데이터 및 칼로리 스케일링
+js/storage.js        localStorage 저장/불러오기
+js/app.js            화면 전환 및 이벤트 처리
+```
