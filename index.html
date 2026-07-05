@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>다이어트 식단 플래너</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<header class="app-header">
+  <h1>🥗 다이어트 식단 플래너</h1>
+  <button id="reset-btn" class="link-btn hidden">처음부터 다시 설정</button>
+</header>
+
+<main id="app-root">
+
+  <!-- 1. 초기 정보 입력 화면 -->
+  <section id="setup-screen" class="screen">
+    <form id="setup-form">
+      <div class="tabs">
+        <button type="button" class="tab-btn active" data-tab="basic">기본 정보 입력</button>
+        <button type="button" class="tab-btn" data-tab="inbody">인바디 결과 입력</button>
+      </div>
+
+      <div class="tab-panel active" data-panel="basic">
+        <p class="hint">나이, 키, 몸무게로 기초대사량을 계산합니다.</p>
+      </div>
+      <div class="tab-panel" data-panel="inbody">
+        <p class="hint">인바디 체지방률을 입력하면 제지방량 기반으로 더 정확하게 계산합니다.</p>
+      </div>
+
+      <div class="field-grid">
+        <label>
+          성별
+          <div class="radio-row">
+            <label><input type="radio" name="gender" value="male" checked /> 남성</label>
+            <label><input type="radio" name="gender" value="female" /> 여성</label>
+          </div>
+        </label>
+        <label>나이 (세)
+          <input type="number" id="age" min="10" max="100" value="30" required />
+        </label>
+        <label>키 (cm)
+          <input type="number" id="height" min="100" max="250" value="170" required />
+        </label>
+        <label>현재 몸무게 (kg)
+          <input type="number" id="weight" min="30" max="300" step="0.1" value="70" required />
+        </label>
+
+        <label class="inbody-only hidden">체지방률 (%)
+          <input type="number" id="bodyFat" min="3" max="60" step="0.1" placeholder="예: 25.5" />
+        </label>
+        <label class="inbody-only hidden">인바디 기초대사량 (kcal, 선택)
+          <input type="number" id="measuredBmr" min="500" max="4000" placeholder="비어두면 체지방률로 자동 계산" />
+        </label>
+
+        <label>활동 수준
+          <select id="activityLevel">
+            <option value="sedentary">거의 운동 안 함 (좌식 생활)</option>
+            <option value="light">가벼운 활동 (주 1~3회 운동)</option>
+            <option value="moderate" selected>보통 활동 (주 3~5회 운동)</option>
+            <option value="active">활발한 활동 (주 6~7회 운동)</option>
+            <option value="very_active">매우 활발함 (육체노동/매일 강도 높은 운동)</option>
+          </select>
+        </label>
+
+        <label>목표 몸무게 (kg)
+          <input type="number" id="targetWeight" min="30" max="300" step="0.1" value="65" required />
+        </label>
+        <label>다이어트 기간 (주)
+          <input type="number" id="durationWeeks" min="1" max="52" value="8" required />
+        </label>
+      </div>
+
+      <p id="setup-warning" class="warning hidden"></p>
+
+      <button type="submit" class="primary-btn">식단 계획 시작하기</button>
+    </form>
+  </section>
+
+  <!-- 2. 대시보드 화면 -->
+  <section id="dashboard-screen" class="screen hidden">
+    <div class="summary-card">
+      <div class="day-progress">
+        <strong id="day-index-label">Day 1 / 56</strong>
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+      </div>
+      <div class="summary-stats">
+        <div><span>기초대사량(BMR)</span><strong id="stat-bmr">-</strong></div>
+        <div><span>일일 소모량(TDEE)</span><strong id="stat-tdee">-</strong></div>
+        <div><span>현재 체중</span><strong id="stat-current-weight">-</strong></div>
+        <div><span>목표 체중</span><strong id="stat-target-weight">-</strong></div>
+      </div>
+      <p id="pace-warning" class="warning hidden"></p>
+    </div>
+
+    <div class="today-target-card">
+      <h2>오늘의 목표</h2>
+      <div class="target-grid">
+        <div class="target-item kcal"><span>칼로리</span><strong id="target-kcal">-</strong></div>
+        <div class="target-item"><span>단백질</span><strong id="target-protein">-</strong></div>
+        <div class="target-item"><span>탄수화물</span><strong id="target-carb">-</strong></div>
+        <div class="target-item"><span>지방</span><strong id="target-fat">-</strong></div>
+      </div>
+    </div>
+
+    <h2>오늘의 추천 식단 (택 1)</h2>
+    <div id="meal-options" class="meal-options"></div>
+
+    <div class="checkin-card">
+      <h2>오늘 식단을 성공적으로 지키셨나요?</h2>
+      <label class="optional-weight">
+        오늘 아침 체중 (kg, 선택 입력 시 계획이 더 정확해집니다)
+        <input type="number" id="actual-weight" step="0.1" placeholder="예: 69.5" />
+      </label>
+      <div class="checkin-buttons">
+        <button id="success-btn" class="success-btn">✅ 성공했어요</button>
+        <button id="fail-btn" class="fail-btn">❌ 실패했어요</button>
+      </div>
+    </div>
+
+    <h2>기록</h2>
+    <table class="history-table">
+      <thead>
+        <tr><th>Day</th><th>날짜</th><th>목표 칼로리</th><th>선택 식단</th><th>결과</th></tr>
+      </thead>
+      <tbody id="history-body"></tbody>
+    </table>
+  </section>
+
+  <!-- 3. 완료 화면 -->
+  <section id="complete-screen" class="screen hidden">
+    <div class="summary-card">
+      <h2>🎉 다이어트 기간이 끝났어요!</h2>
+      <div class="summary-stats">
+        <div><span>총 기간</span><strong id="final-days">-</strong></div>
+        <div><span>성공한 날</span><strong id="final-success-days">-</strong></div>
+        <div><span>시작 체중</span><strong id="final-start-weight">-</strong></div>
+        <div><span>최종 체중</span><strong id="final-current-weight">-</strong></div>
+      </div>
+      <button id="restart-btn" class="primary-btn">새로운 계획 세우기</button>
+    </div>
+  </section>
+
+</main>
+
+<script src="js/calculator.js"></script>
+<script src="js/mealTemplates.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
