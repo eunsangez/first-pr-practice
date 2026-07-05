@@ -1,5 +1,5 @@
 (function (global) {
-  const KEY = 'dietAppState_v1';
+  const KEY = 'dietAppState_v2';
 
   function loadState() {
     try {

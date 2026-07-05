@@ -1,5 +1,6 @@
 (function () {
   const { Calculator, MealTemplates, Storage } = window.DietApp;
+  const MEAL_TYPES = ['breakfast', 'lunch', 'dinner'];
 
   const el = (id) => document.getElementById(id);
   const screens = {
@@ -9,6 +10,10 @@
   };
 
   let state = Storage.loadState();
+
+  function emptyPendingMeals() {
+    return { breakfast: null, lunch: null, dinner: null };
+  }
 
   function showScreen(name) {
     Object.entries(screens).forEach(([key, node]) => {
@@ -65,18 +70,20 @@
     };
 
     const plan = Calculator.createPlan(profile);
-    state = { plan, log: [], dayIndex: 0 };
+    state = { plan, log: [], dayIndex: 0, pendingMeals: emptyPendingMeals() };
     Storage.saveState(state);
     renderApp();
   });
 
   // ---------- 대시보드 렌더링 ----------
-  let selectedMealId = null;
+  const selectedOptionByMeal = { breakfast: null, lunch: null, dinner: null };
+  let currentDayContext = { targetCalories: 0, appliedAdjustment: 0 };
 
   function renderDashboard() {
     const { plan, log, dayIndex } = state;
     const { targetCalories, appliedAdjustment } = Calculator.computeDailyTarget(plan, log, dayIndex);
     const macros = Calculator.calcMacros(targetCalories, plan.currentWeightKg);
+    currentDayContext = { targetCalories, appliedAdjustment };
 
     el('day-index-label').textContent = `Day ${dayIndex + 1} / ${plan.durationDays}`;
     el('progress-fill').style.width = `${Math.min((dayIndex / plan.durationDays) * 100, 100)}%`;
@@ -99,54 +106,131 @@
     el('target-carb').textContent = `${macros.carbG} g`;
     el('target-fat').textContent = `${macros.fatG} g`;
 
-    const options = MealTemplates.generateDailyOptions(targetCalories);
-    selectedMealId = options[0].id;
-    renderMealOptions(options);
+    renderMealSections(targetCalories);
     renderHistory();
-
-    // 다음 체크인에 사용할 값을 미리 계산해 저장해둔다.
-    renderDashboard._pendingAdjustment = appliedAdjustment;
-    renderDashboard._pendingTargetCalories = targetCalories;
   }
 
-  function renderMealOptions(options) {
-    const container = el('meal-options');
+  function renderMealSections(targetCalories) {
+    const container = el('meal-sections');
     container.innerHTML = '';
 
-    options.forEach((option, idx) => {
-      const card = document.createElement('div');
-      card.className = 'meal-card';
+    MEAL_TYPES.forEach((mealType) => {
+      const mealTarget = Math.round(targetCalories * Calculator.MEAL_SHARES[mealType]);
+      const block = document.createElement('div');
+      block.className = 'meal-type-block';
 
-      const mealsHtml = Object.entries(option.meals)
-        .map(([type, items]) => {
-          const itemsHtml = items.map((it) => `<li>${it.name} ${it.amount}g <span>(${it.kcal}kcal)</span></li>`).join('');
-          return `<div class="meal-block"><h4>${MealTemplates.MEAL_TYPE_LABELS[type]}</h4><ul>${itemsHtml}</ul></div>`;
+      const done = state.pendingMeals[mealType];
+      const header = `
+        <div class="meal-type-header">
+          <h2>${MealTemplates.MEAL_TYPE_LABELS[mealType]}</h2>
+          <span class="meal-type-target">약 ${mealTarget}kcal 목표</span>
+        </div>
+      `;
+
+      if (done) {
+        block.innerHTML = `
+          ${header}
+          <div class="meal-status-done ${done.success ? 'success' : 'fail'}">
+            ${done.success ? '✅' : '❌'} ${done.optionName} — ${done.success ? '성공' : '실패'}으로 기록했어요
+          </div>
+        `;
+        container.appendChild(block);
+        return;
+      }
+
+      const options = MealTemplates.generateMealOptions(mealType, mealTarget);
+      if (!selectedOptionByMeal[mealType] || !options.some((o) => o.id === selectedOptionByMeal[mealType])) {
+        selectedOptionByMeal[mealType] = options[0].id;
+      }
+
+      const optionsHtml = options
+        .map((option) => {
+          const itemsHtml = option.items
+            .map((it) => `<li>${it.name} ${it.amount}g <span>(${it.kcal}kcal)</span></li>`)
+            .join('');
+          const selected = option.id === selectedOptionByMeal[mealType];
+          return `
+            <div class="meal-card ${selected ? 'selected' : ''}" data-option-id="${option.id}">
+              <label class="meal-card-header">
+                <input type="radio" name="mealChoice-${mealType}" value="${option.id}" ${selected ? 'checked' : ''} />
+                <div>
+                  <strong>${option.name}</strong>
+                  <p class="meal-desc">${option.description}</p>
+                </div>
+              </label>
+              <div class="meal-totals">
+                ${option.totals.kcal}kcal · 단백질 ${option.totals.protein}g · 탄수 ${option.totals.carb}g · 지방 ${option.totals.fat}g
+              </div>
+              <ul>${itemsHtml}</ul>
+            </div>
+          `;
         })
         .join('');
 
-      card.innerHTML = `
-        <label class="meal-card-header">
-          <input type="radio" name="mealChoice" value="${option.id}" ${idx === 0 ? 'checked' : ''} />
-          <div>
-            <strong>${option.name}</strong>
-            <p class="meal-desc">${option.description}</p>
-          </div>
+      const weightFieldHtml =
+        mealType === 'breakfast'
+          ? `
+        <label class="optional-weight">
+          오늘 아침 체중 (kg, 선택 입력 시 계획이 더 정확해집니다)
+          <input type="number" id="actual-weight" step="0.1" placeholder="예: 69.5" />
         </label>
-        <div class="meal-totals">
-          ${option.totals.kcal}kcal · 단백질 ${option.totals.protein}g · 탄수 ${option.totals.carb}g · 지방 ${option.totals.fat}g
+      `
+          : '';
+
+      block.innerHTML = `
+        ${header}
+        <div class="meal-type-options">${optionsHtml}</div>
+        ${weightFieldHtml}
+        <div class="checkin-buttons">
+          <button class="success-btn" type="button">✅ 성공했어요</button>
+          <button class="fail-btn" type="button">❌ 실패했어요</button>
         </div>
-        ${mealsHtml}
       `;
 
-      card.querySelector('input[type="radio"]').addEventListener('change', () => {
-        selectedMealId = option.id;
-        container.querySelectorAll('.meal-card').forEach((c) => c.classList.remove('selected'));
-        card.classList.add('selected');
+      block.querySelectorAll('input[type="radio"]').forEach((input) => {
+        input.addEventListener('change', () => {
+          selectedOptionByMeal[mealType] = input.value;
+          block.querySelectorAll('.meal-card').forEach((c) => {
+            c.classList.toggle('selected', c.dataset.optionId === input.value);
+          });
+        });
       });
 
-      if (idx === 0) card.classList.add('selected');
-      container.appendChild(card);
+      block.querySelector('.success-btn').addEventListener('click', () => markMealResult(mealType, true, mealTarget));
+      block.querySelector('.fail-btn').addEventListener('click', () => markMealResult(mealType, false, mealTarget));
+
+      container.appendChild(block);
     });
+  }
+
+  function markMealResult(mealType, success, mealTarget) {
+    const options = MealTemplates.generateMealOptions(mealType, mealTarget);
+    const chosen = options.find((o) => o.id === selectedOptionByMeal[mealType]) || options[0];
+
+    if (mealType === 'breakfast') {
+      const actualWeightRaw = el('actual-weight') ? el('actual-weight').value : '';
+      if (actualWeightRaw) {
+        state.plan.currentWeightKg = Number(actualWeightRaw);
+      }
+    }
+
+    state.pendingMeals[mealType] = { optionId: chosen.id, optionName: chosen.name, success };
+
+    const dayComplete = MEAL_TYPES.every((type) => state.pendingMeals[type]);
+    if (dayComplete) {
+      state.log.push({
+        dayIndex: state.dayIndex,
+        date: new Date().toISOString(),
+        targetCalories: currentDayContext.targetCalories,
+        appliedAdjustment: currentDayContext.appliedAdjustment,
+        meals: state.pendingMeals,
+      });
+      state.dayIndex += 1;
+      state.pendingMeals = emptyPendingMeals();
+    }
+
+    Storage.saveState(state);
+    renderApp();
   }
 
   function renderHistory() {
@@ -154,51 +238,31 @@
     tbody.innerHTML = '';
     state.log.forEach((entry) => {
       const tr = document.createElement('tr');
+      const mealCell = (mealType) => {
+        const meal = entry.meals[mealType];
+        return `${meal.optionName} ${meal.success ? '✅' : '❌'}`;
+      };
       tr.innerHTML = `
         <td>${entry.dayIndex + 1}</td>
         <td>${new Date(entry.date).toLocaleDateString('ko-KR')}</td>
-        <td>${entry.targetCalories} kcal</td>
-        <td>${entry.chosenMealName}</td>
-        <td>${entry.success ? '✅ 성공' : '❌ 실패'}</td>
+        <td>${mealCell('breakfast')}</td>
+        <td>${mealCell('lunch')}</td>
+        <td>${mealCell('dinner')}</td>
       `;
       tbody.appendChild(tr);
     });
   }
 
-  function recordCheckIn(success) {
-    const { plan, dayIndex } = state;
-    const options = MealTemplates.generateDailyOptions(renderDashboard._pendingTargetCalories);
-    const chosen = options.find((o) => o.id === selectedMealId) || options[0];
-
-    const actualWeightRaw = el('actual-weight').value;
-    if (actualWeightRaw) {
-      plan.currentWeightKg = Number(actualWeightRaw);
-    }
-
-    state.log.push({
-      dayIndex,
-      date: new Date().toISOString(),
-      targetCalories: renderDashboard._pendingTargetCalories,
-      appliedAdjustment: renderDashboard._pendingAdjustment,
-      success,
-      chosenMealId: chosen.id,
-      chosenMealName: chosen.name,
-    });
-    state.dayIndex += 1;
-    el('actual-weight').value = '';
-
-    Storage.saveState(state);
-    renderApp();
-  }
-
-  el('success-btn').addEventListener('click', () => recordCheckIn(true));
-  el('fail-btn').addEventListener('click', () => recordCheckIn(false));
-
   // ---------- 완료 화면 ----------
   function renderComplete() {
     const { plan, log } = state;
+    const totalMeals = log.length * MEAL_TYPES.length;
+    const successMeals = log.reduce(
+      (sum, entry) => sum + MEAL_TYPES.filter((type) => entry.meals[type].success).length,
+      0
+    );
     el('final-days').textContent = `${plan.durationDays}일`;
-    el('final-success-days').textContent = `${log.filter((l) => l.success).length} / ${log.length}일`;
+    el('final-success-days').textContent = `${successMeals} / ${totalMeals}끼`;
     el('final-start-weight').textContent = `${plan.startWeightKg} kg`;
     el('final-current-weight').textContent = `${plan.currentWeightKg} kg`;
   }

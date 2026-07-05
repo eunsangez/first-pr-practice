@@ -105,25 +105,12 @@
       </div>
     </div>
 
-    <h2>오늘의 추천 식단 (택 1)</h2>
-    <div id="meal-options" class="meal-options"></div>
-
-    <div class="checkin-card">
-      <h2>오늘 식단을 성공적으로 지키셨나요?</h2>
-      <label class="optional-weight">
-        오늘 아침 체중 (kg, 선택 입력 시 계획이 더 정확해집니다)
-        <input type="number" id="actual-weight" step="0.1" placeholder="예: 69.5" />
-      </label>
-      <div class="checkin-buttons">
-        <button id="success-btn" class="success-btn">✅ 성공했어요</button>
-        <button id="fail-btn" class="fail-btn">❌ 실패했어요</button>
-      </div>
-    </div>
+    <div id="meal-sections"></div>
 
     <h2>기록</h2>
     <table class="history-table">
       <thead>
-        <tr><th>Day</th><th>날짜</th><th>목표 칼로리</th><th>선택 식단</th><th>결과</th></tr>
+        <tr><th>Day</th><th>날짜</th><th>아침</th><th>점심</th><th>저녁</th></tr>
       </thead>
       <tbody id="history-body"></tbody>
     </table>
@@ -135,7 +122,7 @@
       <h2>🎉 다이어트 기간이 끝났어요!</h2>
       <div class="summary-stats">
         <div><span>총 기간</span><strong id="final-days">-</strong></div>
-        <div><span>성공한 날</span><strong id="final-success-days">-</strong></div>
+        <div><span>성공한 끼니</span><strong id="final-success-days">-</strong></div>
         <div><span>시작 체중</span><strong id="final-start-weight">-</strong></div>
         <div><span>최종 체중</span><strong id="final-current-weight">-</strong></div>
       </div>
